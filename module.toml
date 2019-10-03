@@ -1,0 +1,13 @@
+name = "contact"
+version = 0.1
+sofile = "contact.so"
+permission = [
+"Create contact",
+"Access contact",
+"Modify contact",
+"Delete contact",
+]
+scope = [
+"profile",
+]
+dependency = []
