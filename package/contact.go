@@ -94,6 +94,8 @@ const DATABASE_EXEC_FAIL = 2200
 const MODULE_OPERATION_FAIL = 2102
 const INPUT_VALIDATION_FAIL = 2110
 
+const VERSION = "0.1.0"
+
 var NOT_ACCEPTABLE = gin.H{"code": "NOT_ACCEPTABLE", "message": "You are trying to request something not acceptible here."}
 var NOT_FOUND = gin.H{"code": "NOT_FOUND", "message": "You are find something we can't found it here."}
 
