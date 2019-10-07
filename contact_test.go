@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	cpac "github.com/septianw/jas-contact/package"
 	"github.com/septianw/jas/common"
 	"github.com/septianw/jas/types"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +101,7 @@ func UnsetEnvironment() {
 func TestContactPostPositive(t *testing.T) {
 	SetEnvironment()
 	defer UnsetEnvironment()
-	contactIn := ContactIn{
+	contactIn := cpac.ContactIn{
 		"Pramitha",
 		"Utami",
 		"Mrs",
@@ -118,7 +119,7 @@ func TestContactPostPositive(t *testing.T) {
 
 	rec := doTheTest(q.pload, q.heads)
 
-	ci, err := FindContact(contactIn)
+	ci, err := cpac.FindContact(contactIn)
 	if err != nil || len(ci) == 0 {
 		t.Fail()
 	}
@@ -144,14 +145,14 @@ func TestContactAllPositive(t *testing.T) {
 	"type": "konsumen"
 	}`)
 
-	contacts := GetContact(-1, 2, 0)
+	contacts := cpac.GetContact(-1, 2, 0)
 	if len(contacts) < 2 {
 		t.Fail()
 	}
 	contactsAllJSON, err := json.Marshal(contacts)
 	common.ErrHandler(err)
 
-	contacts = GetContact(LastPostID, 0, 0)
+	contacts = cpac.GetContact(LastPostID, 0, 0)
 	if len(contacts) != 1 {
 		t.Fail()
 	}
@@ -159,7 +160,7 @@ func TestContactAllPositive(t *testing.T) {
 	contactIdJSON, err := json.Marshal(contact)
 	common.ErrHandler(err)
 
-	contactUpdatedJSON, err := json.Marshal(ContactOut{
+	contactUpdatedJSON, err := json.Marshal(cpac.ContactOut{
 		LastPostID,
 		"Pramitha",
 		"Utami",
