@@ -11,8 +11,10 @@ import (
 	cpac "github.com/septianw/jas-contact/package"
 
 	"github.com/gin-gonic/gin"
-	"github.com/septianw/jas/common"
+	// "github.com/septianw/jas/common"
 )
+
+const Version = "0.1.1"
 
 func Bootstrap() {
 	log.Println("Contact module bootstrap.")
@@ -189,12 +191,13 @@ func GetContactIdHandler(c *gin.Context) {
 }
 
 func PutContactIdHandler(c *gin.Context) {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	var records []cpac.ContactOut
-	var record cpac.ContactOut
-	var oldcontacttype, newcontacttype cpac.Contacttype
-	var contactwtype cpac.Contactwtype
+	// var record cpac.ContactOut
+	// var oldcontacttype, newcontacttype cpac.Contacttype
+	// var contactwtype cpac.Contactwtype
 	var segments = strings.Split(c.Param("path1"), "/")
-	var id int64 = 1
+	var id int64
 	var input cpac.ContactIn
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -213,85 +216,106 @@ func PutContactIdHandler(c *gin.Context) {
 	}
 
 	records = cpac.GetContact(id, 0, 0)
-	if len(records) == 0 {
-		c.JSON(http.StatusNotFound, cpac.NOT_FOUND)
-		return
-	}
-	record = records[0]
+	log.Println(records)
 
-	q := fmt.Sprintf("select * from contacttype where name = '%s'", record.Type)
-	rows, err := cpac.Query(q)
-	common.ErrHandler(err)
+	_, err := cpac.UpdateContact(id, input)
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-			"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-		return
-	}
-	for rows.Next() {
-		rows.Scan(&oldcontacttype.Ctypeid, &oldcontacttype.Name)
-	}
-
-	q = fmt.Sprintf("select * from contacttype where name = '%s'", input.Type)
-	rows, err = cpac.Query(q)
-	common.ErrHandler(err)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-			"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-		return
-	}
-	for rows.Next() {
-		rows.Scan(&newcontacttype.Ctypeid, &newcontacttype.Name)
+		if strings.Compare("Contact not found.", err.Error()) == 0 {
+			c.JSON(http.StatusNotFound, cpac.NOT_FOUND)
+			return
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+				"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+			return
+		}
 	}
 
-	q = fmt.Sprintf("select * from contactwtype where contact_contactid = %d and contacttype_ctypeid = %d", record.Id, oldcontacttype.Ctypeid)
-	rows, err = cpac.Query(q)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-			"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-		return
-	}
-	for rows.Next() {
-		rows.Scan(&contactwtype.Contact_contactid, &contactwtype.Contacttype_ctypeid)
-	}
+	on := cpac.GetContact(id, 0, 0)
+	log.Println(on)
 
-	q = fmt.Sprintf(`update contact
-		set fname = '%s',
-			lname = '%s',
-		    prefix = '%s'
-		where contactid = %d`, input.Firstname, input.Lastname, input.Prefix, id)
-	result, err := cpac.Exec(q)
-	common.ErrHandler(err)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-			"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-		return
-	}
-	log.Printf("\nresult: %+v\n", result)
-
-	q = fmt.Sprintf(`update contactwtype
-			set contacttype_ctypeid = %d
-		where
-			contact_contactid = %d and
-			contacttype_ctypeid = %d`, newcontacttype.Ctypeid, id, oldcontacttype.Ctypeid)
-	result, err = cpac.Exec(q)
-	common.ErrHandler(err)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-			"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-		return
-	}
-	log.Printf("\nresult: %+v\n", result)
-
-	records = cpac.GetContact(id, 0, 0)
-	record = records[0]
-
-	c.JSON(http.StatusOK, record)
+	c.JSON(http.StatusOK, on[0])
 	return
+
+	// records = cpac.GetContact(id, 0, 0)
+	// if len(records) == 0 {
+	// 	c.JSON(http.StatusNotFound, cpac.NOT_FOUND)
+	// 	return
+	// }
+	// record = records[0]
+
+	// q := fmt.Sprintf("select * from contacttype where name = '%s'", record.Type)
+	// rows, err := cpac.Query(q)
+	// common.ErrHandler(err)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+	// 		"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+	// 	return
+	// }
+	// for rows.Next() {
+	// 	rows.Scan(&oldcontacttype.Ctypeid, &oldcontacttype.Name)
+	// }
+
+	// q = fmt.Sprintf("select * from contacttype where name = '%s'", input.Type)
+	// rows, err = cpac.Query(q)
+	// common.ErrHandler(err)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+	// 		"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+	// 	return
+	// }
+	// for rows.Next() {
+	// 	rows.Scan(&newcontacttype.Ctypeid, &newcontacttype.Name)
+	// }
+
+	// q = fmt.Sprintf("select * from contactwtype where contact_contactid = %d and contacttype_ctypeid = %d", record.Id, oldcontacttype.Ctypeid)
+	// rows, err = cpac.Query(q)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+	// 		"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+	// 	return
+	// }
+	// for rows.Next() {
+	// 	rows.Scan(&contactwtype.Contact_contactid, &contactwtype.Contacttype_ctypeid)
+	// }
+
+	// q = fmt.Sprintf(`update contact
+	// 	set fname = '%s',
+	// 		lname = '%s',
+	// 	    prefix = '%s'
+	// 	where contactid = %d`, input.Firstname, input.Lastname, input.Prefix, id)
+	// result, err := cpac.Exec(q)
+	// common.ErrHandler(err)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+	// 		"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+	// 	return
+	// }
+	// log.Printf("\nresult: %+v\n", result)
+
+	// q = fmt.Sprintf(`update contactwtype
+	// 		set contacttype_ctypeid = %d
+	// 	where
+	// 		contact_contactid = %d and
+	// 		contacttype_ctypeid = %d`, newcontacttype.Ctypeid, id, oldcontacttype.Ctypeid)
+	// result, err = cpac.Exec(q)
+	// common.ErrHandler(err)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+	// 		"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+	// 	return
+	// }
+	// log.Printf("\nresult: %+v\n", result)
+
+	// records = cpac.GetContact(id, 0, 0)
+	// record = records[0]
+
+	// c.JSON(http.StatusOK, record)
+	// return
 }
 
 func DeleteContactIdHandler(c *gin.Context) {
 	var segments = strings.Split(c.Param("path1"), "/")
-	var oldcontacttype cpac.Contacttype
 	var id int64 = 1
 
 	i, e := strconv.Atoi(segments[1])
@@ -303,35 +327,16 @@ func DeleteContactIdHandler(c *gin.Context) {
 		return
 	}
 
-	contacts := cpac.GetContact(id, 0, 0)
-	log.Printf("\ncontacts: %+v\n", len(contacts))
-	if len(contacts) > 0 {
-		contact := contacts[0]
-
-		q := fmt.Sprintf("select * from contacttype where name = '%s'", contact.Type)
-		rows, err := cpac.Query(q)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-				"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-			return
-		}
-		for rows.Next() {
-			rows.Scan(&oldcontacttype.Ctypeid, &oldcontacttype.Name)
-		}
-
-		q = fmt.Sprintf(`UPDATE contact SET deleted=1 WHERE contactid = %d`, id)
-		_, err = cpac.Exec(q)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
-				"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
-			return
-		}
-
-		// rec := GetContact(id, 0, 0)
-		// log.Printf("\nrec: %+v\n", rec)
-
-		c.JSON(http.StatusOK, contact)
-	} else {
+	// contacts := cpac.GetContact(id, 0, 0)
+	contact, err := cpac.DeleteContact(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": cpac.DATABASE_EXEC_FAIL,
+			"message": fmt.Sprintf("DATABASE_EXEC_FAIL: %s", err.Error())})
+		return
+	} else if (err != nil) && (strings.Compare("Contact not found.", err.Error()) == 0) {
 		c.JSON(http.StatusNotFound, cpac.NOT_FOUND)
+		return
 	}
+
+	c.JSON(http.StatusOK, contact)
 }

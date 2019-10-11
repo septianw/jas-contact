@@ -42,7 +42,8 @@ type quests []quest
 var LastPostID int64
 
 func getArm() (*gin.Engine, *httptest.ResponseRecorder) {
-	router := gin.Default()
+	router := gin.New()
+	gin.SetMode(gin.ReleaseMode)
 	Router(router)
 
 	recorder := httptest.NewRecorder()
@@ -74,7 +75,7 @@ func doTheTest(load payload, heads headers) *httptest.ResponseRecorder {
 }
 
 func SetupRouter() *gin.Engine {
-	return gin.Default()
+	return gin.New()
 }
 
 func SetEnvironment() {
@@ -135,15 +136,9 @@ func TestContactPostPositive(t *testing.T) {
 }
 
 func TestContactAllPositive(t *testing.T) {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	SetEnvironment()
 	defer UnsetEnvironment()
-
-	UpdateContact := strings.NewReader(`{
-	"firstname": "Pramitha",
-	"lastname": "Utami",
-	"prefix": "Mr",
-	"type": "konsumen"
-	}`)
 
 	contacts := cpac.GetContact(-1, 2, 0)
 	if len(contacts) < 2 {
@@ -160,14 +155,8 @@ func TestContactAllPositive(t *testing.T) {
 	contactIdJSON, err := json.Marshal(contact)
 	common.ErrHandler(err)
 
-	contactUpdatedJSON, err := json.Marshal(cpac.ContactOut{
-		LastPostID,
-		"Pramitha",
-		"Utami",
-		"Mr",
-		"konsumen",
-	})
-	common.ErrHandler(err)
+	// log.Println(string(contactIdJSON))
+	// log.Println(string(contactUpdatedJSON))
 
 	qs := quests{
 		quest{
@@ -180,16 +169,6 @@ func TestContactAllPositive(t *testing.T) {
 			headers{},
 			expectation{200, string(contactIdJSON) + "\n"},
 		},
-		quest{
-			payload{"PUT", fmt.Sprintf("/api/v1/contact/%d", LastPostID), UpdateContact},
-			headers{},
-			expectation{200, string(contactUpdatedJSON) + "\n"},
-		},
-		quest{
-			payload{"DELETE", fmt.Sprintf("/api/v1/contact/%d", LastPostID), nil},
-			headers{},
-			expectation{200, string(contactUpdatedJSON) + "\n"},
-		},
 	}
 
 	for _, q := range qs {
@@ -197,6 +176,61 @@ func TestContactAllPositive(t *testing.T) {
 		assert.Equal(t, q.expect.Code, rec.Code)
 		assert.Equal(t, q.expect.Body, rec.Body.String())
 	}
+}
+
+func TestContactPutPositive(t *testing.T) {
+	SetEnvironment()
+	defer UnsetEnvironment()
+
+	UpdateContact := strings.NewReader(`{
+	"firstname": "Pramitha",
+	"lastname": "Utami",
+	"prefix": "Mr",
+	"type": "konsumen"
+	}`)
+	contactUpdatedJSON, err := json.Marshal(cpac.ContactOut{
+		LastPostID,
+		"Pramitha",
+		"Utami",
+		"Mr",
+		"konsumen",
+	})
+	common.ErrHandler(err)
+
+	q := quest{
+		payload{"PUT", fmt.Sprintf("/api/v1/contact/%d", LastPostID), UpdateContact},
+		headers{},
+		expectation{200, string(contactUpdatedJSON) + "\n"},
+	}
+
+	rec := doTheTest(q.pload, q.heads)
+	assert.Equal(t, q.expect.Code, rec.Code)
+	assert.Equal(t, q.expect.Body, rec.Body.String())
+}
+
+func TestContactDeletePositive(t *testing.T) {
+	SetEnvironment()
+	defer UnsetEnvironment()
+
+	contactUpdatedJSON, err := json.Marshal(cpac.ContactOut{
+		LastPostID,
+		"Pramitha",
+		"Utami",
+		"Mr",
+		"konsumen",
+	})
+	common.ErrHandler(err)
+
+	q := quest{
+		payload{"DELETE", fmt.Sprintf("/api/v1/contact/%d", LastPostID), nil},
+		headers{},
+		expectation{200, string(contactUpdatedJSON)},
+	}
+
+	rec := doTheTest(q.pload, q.heads)
+
+	assert.Equal(t, q.expect.Code, rec.Code)
+	assert.Equal(t, q.expect.Body+"\n", rec.Body.String())
 }
 
 func TestContactPostNegative(t *testing.T) {
