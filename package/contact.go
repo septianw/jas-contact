@@ -219,19 +219,21 @@ func FindContact(contacin ContactIn) (records []ContactOut, err error) {
 
 func InsertContact(contactin ContactIn) (id int64, err error) {
 	var contactType Contacttype
+	var q string
+
+	if strings.Compare(contactin.Type, "") != 0 {
+		q = fmt.Sprintf("SELECT * FROM contacttype WHERE name = '%s'", contactin.Type)
+		rows, err := Query(q)
+		if err != nil {
+			return 0, err
+		}
+		for rows.Next() {
+			rows.Scan(&contactType.Ctypeid, &contactType.Name)
+		}
+		rows.Close()
+	}
 
 	// ambil contact type
-	q := fmt.Sprintf("SELECT * FROM contacttype WHERE name = '%s'", contactin.Type)
-	rows, err := Query(q)
-	if err != nil {
-		return 0, err
-	}
-	for rows.Next() {
-		rows.Scan(&contactType.Ctypeid, &contactType.Name)
-	}
-	if contactType == (Contacttype{}) {
-		return 0, errors.New("Contact time not found.")
-	}
 
 	q = fmt.Sprintf(
 		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `deleted`) VALUES ('%s','%s','%s','0')",
@@ -244,17 +246,18 @@ func InsertContact(contactin ContactIn) (id int64, err error) {
 	if err != nil {
 		return 0, err
 	}
-
 	contactID, err := result.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
 
-	// sambungkan contact dengan contact type
-	q = fmt.Sprintf("INSERT INTO `contactwtype` VALUES ('%d','%d')", contactID, contactType.Ctypeid)
-	_, err = Exec(q)
-	if err != nil {
-		return 0, err
+	if contactType == (Contacttype{}) {
+		// sambungkan contact dengan contact type
+		q = fmt.Sprintf("INSERT INTO `contactwtype` VALUES ('%d','%d')", contactID, contactType.Ctypeid)
+		_, err = Exec(q)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	// ambil record tersimpan

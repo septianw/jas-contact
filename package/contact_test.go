@@ -34,7 +34,7 @@ func UnsetEnvironment() {
 	os.Remove("/tmp/shinyRuntimeFile")
 }
 
-func TestInsertContact(t *testing.T) {
+func TestInsertContactPositive(t *testing.T) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	var ct ContactIn
 
@@ -99,6 +99,7 @@ func TestUpdateContact(t *testing.T) {
 	ct.Lastname = "Media"
 	ct.Prefix = "V"
 	ct.Type = "mitra"
+
 	rec, err := UpdateContact(contactid, ct)
 	log.Println(err)
 	log.Println(rec)
@@ -106,9 +107,10 @@ func TestUpdateContact(t *testing.T) {
 	log.Printf("%+v", ct)
 
 	contacts := GetContact(contactid, 0, 0)
-	log.Printf("%+v", contacts[0])
-	if len(contacts) != 1 {
+	log.Printf("%+v", contacts)
+	if len(contacts) < 1 {
 		t.Fail()
+		return
 	}
 	cto.Firstname = contacts[0].Firstname
 	cto.Lastname = contacts[0].Lastname
@@ -132,4 +134,36 @@ func TestDeleteContact(t *testing.T) {
 	}
 	log.Println(contact)
 	log.Println(err)
+}
+
+func TestInsertContactNegative(t *testing.T) {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	var ct ContactIn
+
+	SetEnvironment()
+	defer UnsetEnvironment()
+
+	ct.Firstname = "firstname test"
+	ct.Lastname = "lastname test"
+	ct.Prefix = "Jr."
+
+	id, err := InsertContact(ct)
+
+	contacts := GetContact(id, 0, 0)
+
+	if len(contacts) == 0 {
+		t.Fail()
+	}
+
+	if err != nil {
+		t.Fail()
+	}
+
+	if id != 0 {
+		t.Fail()
+	}
+
+	t.Logf("Last insert id: %d", id)
+	t.Logf("Error %+v", err)
+	t.Logf("contacts: %+v", contacts)
 }
