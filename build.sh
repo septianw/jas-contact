@@ -18,8 +18,8 @@ sed "s/versionplaceholder/"$WRITTENVERSION"/g" version.template > ./package/vers
 sed "s/versionplaceholder/"$WRITTENVERSION"/g" module.toml.template > ./module.toml
 
 mkdir bungkus
-go build -buildmode=plugin -ldflags="-s -w" -o bungkus/terminal.so
+go build -buildmode=plugin -ldflags="-s -w" -o bungkus/contact.so
 cp -Rvf LICENSE CHANGELOG  module.toml schema bungkus
-mv bungkus terminal
-tar zcvvf terminal-$WRITTENVERSION.tar.gz terminal
-rm -Rvf terminal ./module.toml ./package/version.go
+mv bungkus contact
+tar zcvvf contact-$WRITTENVERSION.tar.gz contact
+rm -Rvf contact ./module.toml ./package/version.go
