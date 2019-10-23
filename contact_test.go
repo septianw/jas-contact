@@ -160,7 +160,7 @@ func TestContactAllPositive(t *testing.T) {
 
 	qs := quests{
 		quest{
-			payload{"GET", "/api/v1/contact/all/0/2", nil},
+			payload{"GET", "/api/v1/contact/all/2/0", nil},
 			headers{},
 			expectation{200, string(contactsAllJSON) + "\n"},
 		},

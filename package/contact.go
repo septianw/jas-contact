@@ -14,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const Version = "0.1.1"
-
 func getdbobj() (db *sql.DB, err error) {
 	rt := common.ReadRuntime()
 	dbs := common.LoadDatabase(filepath.Join(rt.Libloc, "database.so"), rt.Dbconf)
@@ -97,8 +95,6 @@ increasing error number based on which part of code that error.
 const DATABASE_EXEC_FAIL = 2200
 const MODULE_OPERATION_FAIL = 2102
 const INPUT_VALIDATION_FAIL = 2110
-
-const VERSION = "0.1.0"
 
 var NOT_ACCEPTABLE = gin.H{"code": "NOT_ACCEPTABLE", "message": "You are trying to request something not acceptible here."}
 var NOT_FOUND = gin.H{"code": "NOT_FOUND", "message": "You are find something we can't found it here."}
@@ -230,7 +226,7 @@ func InsertContact(contactin ContactIn) (id int64, err error) {
 		rows.Scan(&contactType.Ctypeid, &contactType.Name)
 	}
 	if contactType == (Contacttype{}) {
-		return 0, errors.New("Contact time not found.")
+		return 0, errors.New("Contact type not found.")
 	}
 
 	q = fmt.Sprintf(
@@ -368,6 +364,8 @@ func UpdateContact(contactId int64, contactin ContactIn) (id int64, err error) {
 }
 
 // ini jenisnya upsert
+// FIXME: inconsistency between insert and update.
+//        if insert done without contactID (obviously) so do with update.
 func SetContact(contactId int64, contactin ContactIn) (id int64, err error) {
 	// var input cpac.ContactIn
 	// var contactType Contacttype
