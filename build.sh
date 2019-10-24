@@ -22,4 +22,4 @@ go build -buildmode=plugin -ldflags="-s -w" -o bungkus/contact.so
 cp -Rvf LICENSE CHANGELOG  module.toml schema bungkus
 mv bungkus contact
 tar zcvvf contact-$WRITTENVERSION.tar.gz contact
-rm -Rvf contact ./module.toml ./package/version.go
+rm -Rvf contact ./module.toml
