@@ -6,13 +6,13 @@ COMMIT=$(git rev-parse --short HEAD);
 
 WRITTENVERSION=$APIVERSION'-'$VERSION'-'$COMMIT
 
-git diff-index --quiet HEAD --
+#git diff-index --quiet HEAD --
 
-if [[ $? != 0 ]]
-then
-  echo "There is uncommitted code, commit first, and build again."
-  exit 1
-fi
+#if [[ $? != 0 ]]
+#then
+#  echo "There is uncommitted code, commit first, and build again."
+#  exit 1
+#fi
 
 sed "s/versionplaceholder/"$WRITTENVERSION"/g" version.template > ./package/version.go
 sed "s/versionplaceholder/"$WRITTENVERSION"/g" module.toml.template > ./module.toml
