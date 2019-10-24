@@ -1,274 +1,406 @@
-package main
+package contact
 
 import (
-	"errors"
-	"log"
-	"net/http"
-	"strconv"
-	"strings"
-
 	"fmt"
 
-	cpac "github.com/septianw/jas-contact/package"
+	"database/sql"
+	"errors"
+	"log"
+	"path/filepath"
+	"strings"
+
+	"github.com/septianw/jas/common"
 
 	"github.com/gin-gonic/gin"
-	"github.com/septianw/jas/common"
 )
 
-const Version = cpac.Version
-
-func Bootstrap() {
-	log.Println("Contact module bootstrap.")
+func getdbobj() (db *sql.DB, err error) {
+	rt := common.ReadRuntime()
+	dbs := common.LoadDatabase(filepath.Join(rt.Libloc, "database.so"), rt.Dbconf)
+	db, err = dbs.OpenDb(rt.Dbconf)
+	return
 }
 
-func Router(r *gin.Engine) {
-	r.Any("/api/v1/contact/*path1", deflt)
+func Query(q string) (*sql.Rows, error) {
+	db, err := getdbobj()
+	common.ErrHandler(err)
+	defer db.Close()
+
+	return db.Query(q)
 }
 
-// func GetContactType
+func Exec(q string) (sql.Result, error) {
+	db, err := getdbobj()
+	common.ErrHandler(err)
+	defer db.Close()
 
-func deflt(c *gin.Context) {
-	segments := strings.Split(c.Param("path1"), "/")
-	// log.Printf("\n%+v\n", c.Request.Method)
-	// log.Printf("\n%+v\n", c.Param("path1"))
-	// log.Printf("\n%+v\n", segments)
-	// log.Printf("\n%+v\n", len(segments))
-	switch c.Request.Method {
-	case "POST":
-		if strings.Compare(segments[1], "") == 0 {
-			PostContactHandler(c)
+	return db.Exec(q)
+}
+
+type Contact struct {
+	Contactid int64
+	Fname     string
+	Lname     string
+	Prefix    string
+}
+
+type Contacttype struct {
+	Ctypeid int64
+	Name    string
+}
+
+type Contactwtype struct {
+	Contact_contactid   int64
+	Contacttype_ctypeid int64
+}
+
+type ContactIn struct {
+	Firstname string `json:"firstname" binding:"required"`
+	Lastname  string `json:"lastname" binding:"required"`
+	Prefix    string `json:"prefix" binding:"required"`
+	Type      string `json:"type" binding:"required"`
+}
+
+type ContactOut struct {
+	Id        int64  `json:"id" binding:"required"`
+	Firstname string `json:"firstname" binding:"required"`
+	Lastname  string `json:"lastname" binding:"required"`
+	Prefix    string `json:"prefix" binding:"required"`
+	Type      string `json:"type" binding:"required"`
+}
+
+/*
+ERROR CODE LEGEND:
+error containt 4 digits,
+first digit represent error location either module or main app
+1 for main app
+2 for module
+
+second digit represent error at level app or database
+1 for app
+2 for database
+
+third digit represent error with input variable or variable manipulation
+0 for skipping this error
+1 for input validation error
+2 for variable manipulation error
+
+fourth digit represent error with logic, this type of error have
+increasing error number based on which part of code that error.
+0 for skipping this error
+1 for unknown logical error
+2 for whole operation fail, operation end unexpectedly
+*/
+
+const DATABASE_EXEC_FAIL = 2200
+const MODULE_OPERATION_FAIL = 2102
+const INPUT_VALIDATION_FAIL = 2110
+
+var NOT_ACCEPTABLE = gin.H{"code": "NOT_ACCEPTABLE", "message": "You are trying to request something not acceptible here."}
+var NOT_FOUND = gin.H{"code": "NOT_FOUND", "message": "You are find something we can't found it here."}
+
+func GetContact(id, limit, offset int64) (records []ContactOut) {
+	var record ContactOut
+	q := `
+		select distinct
+			c.contactid id,
+			c.fname firstname,
+			c.lname lastname,
+			c.prefix prefix,
+			ct.name type
+		from
+			contact c
+		join contactwtype cwt
+			on c.contactid = cwt.contact_contactid
+		join contacttype ct
+			on ct.ctypeid = cwt.contacttype_ctypeid
+		where deleted = 0
+		group by
+			id,
+			firstname,
+			lastname %s`
+	constr := `limit %d offset %d`
+
+	qid := `
+		select distinct
+			c.contactid id,
+			c.fname firstname,
+			c.lname lastname,
+			c.prefix prefix,
+			ct.name type
+		from
+			contact c
+		join contactwtype cwt
+			on c.contactid = cwt.contact_contactid
+		join contacttype ct
+			on ct.ctypeid = cwt.contacttype_ctypeid
+		%s
+		group by
+			id,
+			firstname,
+			lastname`
+	constrid := "where c.contactid = %d and deleted = 0"
+
+	if id == -1 {
+		if limit == 0 {
+			constr = fmt.Sprintf(constr, 10, 0)
+			q = fmt.Sprintf(q, constr)
 		} else {
-			c.AbortWithStatusJSON(http.StatusMethodNotAllowed, cpac.NOT_ACCEPTABLE)
+			constr = fmt.Sprintf(constr, limit, offset)
+			q = fmt.Sprintf(q, constr)
 		}
-		break
-	case "GET":
-		if strings.Compare(segments[1], "all") == 0 {
-			GetContactAllHandler(c)
-		} else if i, e := strconv.Atoi(segments[1]); (e == nil) && (i > 0) {
-			GetContactIdHandler(c)
-		} else {
-			c.AbortWithStatusJSON(http.StatusNotAcceptable, cpac.NOT_ACCEPTABLE)
+		log.Println(q)
+		rows, err := Query(q)
+		defer rows.Close()
+		common.ErrHandler(err)
+
+		for rows.Next() {
+			err := rows.Scan(&record.Id, &record.Firstname, &record.Lastname, &record.Prefix, &record.Type)
+			common.ErrHandler(err)
+
+			records = append(records, record)
 		}
-		break
-	case "PUT":
-		if i, e := strconv.Atoi(segments[1]); (e == nil) && (i > 0) {
-			PutContactIdHandler(c)
-		} else {
-			c.AbortWithStatusJSON(http.StatusMethodNotAllowed, cpac.NOT_ACCEPTABLE)
+	} else {
+		constrid = fmt.Sprintf(constrid, id)
+		qid = fmt.Sprintf(qid, constrid)
+
+		log.Println(qid)
+		rows, err := Query(qid)
+		common.ErrHandler(err)
+
+		for rows.Next() {
+			err := rows.Scan(&record.Id, &record.Firstname, &record.Lastname, &record.Prefix, &record.Type)
+			common.ErrHandler(err)
+
+			records = append(records, record)
 		}
-		break
-	case "DELETE":
-		if i, e := strconv.Atoi(segments[1]); (e == nil) && (i > 0) {
-			DeleteContactIdHandler(c)
-		} else {
-			c.AbortWithStatusJSON(http.StatusMethodNotAllowed, cpac.NOT_ACCEPTABLE)
-		}
-		break
-	default:
-		c.AbortWithStatusJSON(http.StatusMethodNotAllowed, cpac.NOT_ACCEPTABLE)
-		break
 	}
-	// c.String(http.StatusOK, "hai")
+
+	return
 }
 
-func PostContactHandler(c *gin.Context) {
-	var input cpac.ContactIn
-	var contactType cpac.Contacttype
+func FindContact(contacin ContactIn) (records []ContactOut, err error) {
+	var contact Contact
+	var sbQContact strings.Builder
+	// var contacts []Contact
+	sbQContact.WriteString("SELECT contactid FROM contact WHERE ")
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, err)
-		return
+	if strings.Compare(contacin.Firstname, "") != 0 {
+		_, err = sbQContact.WriteString(fmt.Sprintf("fname = '%s' ", contacin.Firstname))
+		common.ErrHandler(err)
+	}
+	if strings.Compare(contacin.Lastname, "") != 0 {
+		_, err = sbQContact.WriteString(fmt.Sprintf("and lname = '%s' ", contacin.Lastname))
+		common.ErrHandler(err)
+	}
+	if strings.Compare(contacin.Prefix, "") != 0 {
+		_, err = sbQContact.WriteString(fmt.Sprintf("and prefix = '%s'", contacin.Prefix))
+		common.ErrHandler(err)
 	}
 
-	// insert ke table contact
-	q := fmt.Sprintf(
-		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `deleted`) VALUES ('%s','%s','%s','0')",
-		input.Firstname,
-		input.Lastname,
-		input.Prefix,
-	)
-	result, err := cpac.Exec(q)
+	q := sbQContact.String()
+	log.Printf("\n%+v\n", q)
+	rows, err := Query(q)
+	// log.Printf("\n%+v err: %+v\n", rows, err)
 	if err != nil {
-		common.SendHttpError(c, common.DATABASE_EXEC_FAIL_CODE, err)
 		return
 	}
-	contactID, err := result.LastInsertId()
-	if err != nil {
-		common.SendHttpError(c, common.DATABASE_EXEC_FAIL_CODE, err)
-		return
+	for rows.Next() {
+		rows.Scan(&contact.Contactid)
+		// contacts = append(contacts, contact)
 	}
+	records = GetContact(contact.Contactid, 0, 0)
+	return
+}
+
+func InsertContact(contactin ContactIn) (id int64, err error) {
+	var contactType Contacttype
 
 	// ambil contact type
-	q = fmt.Sprintf("SELECT * FROM contacttype WHERE name = '%s'", input.Type)
-	rows, err := cpac.Query(q)
+	q := fmt.Sprintf("SELECT * FROM contacttype WHERE name = '%s'", contactin.Type)
+	rows, err := Query(q)
 	if err != nil {
-		common.SendHttpError(c, common.DATABASE_EXEC_FAIL_CODE, err)
-		return
+		return 0, err
 	}
 	for rows.Next() {
 		rows.Scan(&contactType.Ctypeid, &contactType.Name)
 	}
+	if contactType == (Contacttype{}) {
+		return 0, errors.New("Contact type not found.")
+	}
+
+	q = fmt.Sprintf(
+		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `deleted`) VALUES ('%s','%s','%s','0')",
+		contactin.Firstname,
+		contactin.Lastname,
+		contactin.Prefix,
+	)
+
+	result, err := Exec(q)
+	if err != nil {
+		return 0, err
+	}
+
+	contactID, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
 
 	// sambungkan contact dengan contact type
 	q = fmt.Sprintf("INSERT INTO `contactwtype` VALUES ('%d','%d')", contactID, contactType.Ctypeid)
-	_, err = cpac.Exec(q)
+	_, err = Exec(q)
 	if err != nil {
-		common.SendHttpError(c, common.DATABASE_EXEC_FAIL_CODE, err)
-		return
+		return 0, err
 	}
 
 	// ambil record tersimpan
-	contacts := cpac.GetContact(contactID, 0, 0)
+	contacts := GetContact(contactID, 0, 0)
 	if len(contacts) == 0 {
-		common.SendHttpError(c, common.MODULE_OPERATION_FAIL_CODE,
-			errors.New(fmt.Sprintf("MODULE_OPERATION_FAIL: insert contact fail, inserted %d", len(contacts))))
-		return
+		return 0, errors.New("Insert contact fail.")
 	}
-	contact := contacts[0]
-	c.JSON(http.StatusCreated, contact)
-	return
+
+	return contactID, nil
 }
 
-func GetContactAllHandler(c *gin.Context) {
-	var records []cpac.ContactOut
-	var segments = strings.Split(c.Param("path1"), "/")
-	var l, o int64
-	var limit, offset int
-	var err error
-
-	if len(segments) == 3 {
-		offset = 0
-		limit, err = strconv.Atoi(segments[2])
-		if err != nil {
-			common.ErrHandler(err)
-			common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, errors.New(
-				fmt.Sprintf("%+v should be numeric", segments[2])))
-			return
-		}
-	} else if len(segments) == 4 {
-		offset, err = strconv.Atoi(segments[3])
-		if err != nil {
-			log.Println(err.Error())
-			common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, errors.New(
-				fmt.Sprintf("%+v should be numeric", segments[3])))
-			return
-		}
-		limit, err = strconv.Atoi(segments[2])
-		if err != nil {
-			log.Println(err.Error())
-			common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, errors.New(
-				fmt.Sprintf("%+v should be numeric", segments[2])))
-			return
-		}
-	} else {
-		limit = 10
-		offset = 0
-	}
-
-	if err == nil { // tidak ada error dari konversi
-		l = int64(limit)
-		o = int64(offset)
-	}
-
-	records = cpac.GetContact(-1, l, o)
-
-	c.JSON(http.StatusOK, records)
-	return
-}
-
-func GetContactIdHandler(c *gin.Context) {
-	var records []cpac.ContactOut
-	var record cpac.ContactOut
-	var segments = strings.Split(c.Param("path1"), "/")
-	var id int64 = 1
-
-	i, e := strconv.Atoi(segments[1])
-
-	if e == nil { // konversi berhasil
-		id = int64(i)
-	} else {
-		common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, e)
-		return
-	}
-
-	records = cpac.GetContact(id, 0, 0)
-	if len(records) > 0 {
-		record = records[0]
-	} else {
-		common.SendHttpError(c, common.RECORD_NOT_FOUND_CODE, errors.New("You are find something we can't found it here."))
-		return
-	}
-
-	c.JSON(http.StatusOK, record)
-	return
-}
-
-func PutContactIdHandler(c *gin.Context) {
+func UpdateContact(contactId int64, contactin ContactIn) (id int64, err error) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	var records []cpac.ContactOut
-	// var record cpac.ContactOut
-	// var oldcontacttype, newcontacttype cpac.Contacttype
-	// var contactwtype cpac.Contactwtype
-	var segments = strings.Split(c.Param("path1"), "/")
-	var id int64
-	var input cpac.ContactIn
+	// FIXME: terlalu banyak query, cek yang lama dengan yang baru aja dulu, baru update yang berubah aja.
+	// var contactDiff ContactOut
+	var sbContact strings.Builder
+	var dbContactwType strings.Builder
+	var qCheckType, qSetContact string
+	var set bool = false
+	var setField []string
+	var ctype Contacttype
+	var oldCtypeId int64
+	// var result sql.Result
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, err)
-		return
+	_, err = sbContact.WriteString("update contact set ")
+	common.ErrHandler(err)
+
+	_, err = dbContactwType.WriteString(`update contactwtype
+			set contacttype_ctypeid = %d
+		where
+			contact_contactid = %d and
+			contacttype_ctypeid = %d`)
+	common.ErrHandler(err)
+
+	contacts := GetContact(contactId, 0, 0)
+	if len(contacts) == 0 {
+		return 0, errors.New("Contact not found.")
+	}
+	// log.Println(contacts)
+	// log.Println(contactin)
+
+	// compare every value, and find the different
+	contact := contacts[0]
+	if (strings.Compare(contact.Firstname, contactin.Firstname) != 0) &&
+		(strings.Compare(contactin.Firstname, "") != 0) {
+		set = true
+		setField = append(setField, fmt.Sprintf("fname = '%s'", contactin.Firstname))
+	}
+	if (strings.Compare(contact.Lastname, contactin.Lastname) != 0) &&
+		(strings.Compare(contactin.Lastname, "") != 0) {
+		set = true
+		setField = append(setField, fmt.Sprintf("lname = '%s'", contactin.Lastname))
+	}
+	if (strings.Compare(contact.Prefix, contactin.Prefix) != 0) &&
+		(strings.Compare(contactin.Prefix, "") != 0) {
+		set = true
+		setField = append(setField, fmt.Sprintf("prefix = '%s'", contactin.Prefix))
+	}
+	if (strings.Compare(contact.Type, contactin.Type) != 0) &&
+		(strings.Compare(contactin.Type, "") != 0) {
+		qCheckType = fmt.Sprintf("select * from contacttype where name = '%s'", contactin.Type)
 	}
 
-	i, e := strconv.Atoi(segments[1])
-	if e == nil { // konversi berhasil
-		id = int64(i)
-	} else {
-		common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, e)
-		return
+	if set {
+		// sbContact.WriteString(" ")
+		sbContact.WriteString(strings.Join(setField, ", "))
+		sbContact.WriteString(fmt.Sprintf(" where contactid = %d", contactId))
+		qSetContact = sbContact.String()
 	}
 
-	records = cpac.GetContact(id, 0, 0)
-	log.Println(records)
-
-	_, err := cpac.UpdateContact(id, input)
-
-	if err != nil {
-		if strings.Compare("Contact not found.", err.Error()) == 0 {
-			common.SendHttpError(c, common.RECORD_NOT_FOUND_CODE, err)
-			return
-		} else {
-			common.SendHttpError(c, common.DATABASE_EXEC_FAIL_CODE, err)
-			return
+	// kalau yang berubah hanya di table contact saja
+	if strings.Compare(qSetContact, "") != 0 {
+		log.Println(qSetContact)
+		_, err = Exec(qSetContact)
+		if err != nil {
+			return 0, err
 		}
 	}
 
-	on := cpac.GetContact(id, 0, 0)
-	log.Println(on)
+	// kalau yang berubah hanya type contact saja.
+	if strings.Compare(qCheckType, "") != 0 {
+		log.Println(qCheckType)
+		rows, err := Query(qCheckType)
+		if err != nil {
+			return 0, err
+		}
 
-	c.JSON(http.StatusOK, on[0])
+		for rows.Next() {
+			rows.Scan(&ctype.Ctypeid, &ctype.Name)
+		}
+
+		if ctype == (Contacttype{}) {
+			return 0, errors.New("Contact type not found.")
+		}
+
+		q := fmt.Sprintf(`select ctypeid from contacttype where name = '%s'`, contact.Type)
+		rows.Close()
+		rows, err = Query(q)
+		for rows.Next() {
+			rows.Scan(&oldCtypeId)
+		}
+
+		q = fmt.Sprintf(dbContactwType.String(), ctype.Ctypeid, contactId, oldCtypeId)
+		_, err = Exec(q)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	return
 }
 
-func DeleteContactIdHandler(c *gin.Context) {
-	var segments = strings.Split(c.Param("path1"), "/")
-	var id int64 = 1
+// ini jenisnya upsert
+// FIXME: inconsistency between insert and update.
+//        if insert done without contactID (obviously) so do with update.
+func SetContact(contactId int64, contactin ContactIn) (id int64, err error) {
+	// var input cpac.ContactIn
+	// var contactType Contacttype
+	// var oldcontacttype, newcontacttype Contacttype
 
-	i, e := strconv.Atoi(segments[1])
-	if e == nil { // konversi berhasil
-		id = int64(i)
+	ctk := GetContact(contactId, 0, 0)
+
+	if len(ctk) == 0 { // kalau kontak tidak ditemukan
+		return InsertContact(contactin)
 	} else {
-		common.SendHttpError(c, common.INPUT_VALIDATION_FAIL_CODE, e)
-		return
+		// kalau kontak ditemukan berarti update.
+		return UpdateContact(contactId, contactin)
+	}
+}
+
+func DeleteContact(contactID int64) (contact ContactOut, err error) {
+	contacts := GetContact(contactID, 0, 0)
+
+	if len(contacts) != 1 {
+		return ContactOut{}, errors.New("Contact not found.")
 	}
 
-	// contacts := cpac.GetContact(id, 0, 0)
-	contact, err := cpac.DeleteContact(id)
+	contact = contacts[0]
+
+	q := fmt.Sprintf(`UPDATE contact SET deleted=1 WHERE contactid = %d`, contactID)
+	result, err := Exec(q)
 	if err != nil {
-		common.SendHttpError(c, common.DATABASE_EXEC_FAIL_CODE, err)
-		return
-	} else if (err != nil) && (strings.Compare("Contact not found.", err.Error()) == 0) {
-		common.SendHttpError(c, common.RECORD_NOT_FOUND_CODE, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contact)
+	aff, err := result.RowsAffected()
+	if err != nil {
+		return
+	}
+	log.Printf("Record %+v deleted, row affected %d", contacts[0], aff)
+
+	return
 }
