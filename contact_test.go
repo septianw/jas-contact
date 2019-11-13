@@ -17,7 +17,7 @@ func SetEnvironment() {
 	var rt types.Runtime
 	var Dbconf types.Dbconf
 
-	Dbconf.Database = "ipoint"
+	Dbconf.Database = "jasdev"
 	Dbconf.Host = "localhost"
 	Dbconf.Pass = "dummypass"
 	Dbconf.Port = 3306
@@ -45,6 +45,8 @@ func TestInsertContact(t *testing.T) {
 	ct.Lastname = "lastname test"
 	ct.Prefix = "Jr."
 	ct.Type = "mitra"
+	ct.Phone = "089455233444"
+	ct.Email = "mama@mia.me"
 
 	id, err := InsertContact(ct)
 

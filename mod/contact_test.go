@@ -82,7 +82,7 @@ func SetEnvironment() {
 	var rt types.Runtime
 	var Dbconf types.Dbconf
 
-	Dbconf.Database = "ipoint"
+	Dbconf.Database = "jasdev"
 	Dbconf.Host = "localhost"
 	Dbconf.Pass = "dummypass"
 	Dbconf.Port = 3306
@@ -107,6 +107,9 @@ func TestContactPostPositive(t *testing.T) {
 		"Utami",
 		"Mrs",
 		"karyawan",
+		// "", "",
+		"085345672345",
+		"mama@mia.me",
 	}
 	nc, err := json.Marshal(contactIn)
 	common.ErrHandler(err)
@@ -194,6 +197,8 @@ func TestContactPutPositive(t *testing.T) {
 		"Utami",
 		"Mr",
 		"konsumen",
+		"085345672345",
+		"mama@mia.me",
 	})
 	common.ErrHandler(err)
 
@@ -218,6 +223,8 @@ func TestContactDeletePositive(t *testing.T) {
 		"Utami",
 		"Mr",
 		"konsumen",
+		"085345672345",
+		"mama@mia.me",
 	})
 	common.ErrHandler(err)
 

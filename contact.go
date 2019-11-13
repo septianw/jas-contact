@@ -42,6 +42,8 @@ type Contact struct {
 	Fname     string
 	Lname     string
 	Prefix    string
+	Phone     string
+	Email     string
 }
 
 type Contacttype struct {
@@ -59,6 +61,8 @@ type ContactIn struct {
 	Lastname  string `json:"lastname" binding:"required"`
 	Prefix    string `json:"prefix" binding:"required"`
 	Type      string `json:"type" binding:"required"`
+	Phone     string `json:"phone"`
+	Email     string `json:"email"`
 }
 
 type ContactOut struct {
@@ -67,6 +71,8 @@ type ContactOut struct {
 	Lastname  string `json:"lastname" binding:"required"`
 	Prefix    string `json:"prefix" binding:"required"`
 	Type      string `json:"type" binding:"required"`
+	Phone     string `json:"phone"`
+	Email     string `json:"email"`
 }
 
 /*
@@ -107,6 +113,8 @@ func GetContact(id, limit, offset int64) (records []ContactOut) {
 			c.fname firstname,
 			c.lname lastname,
 			c.prefix prefix,
+			c.phone phone,
+			c.email email,
 			ct.name type
 		from
 			contact c
@@ -127,6 +135,8 @@ func GetContact(id, limit, offset int64) (records []ContactOut) {
 			c.fname firstname,
 			c.lname lastname,
 			c.prefix prefix,
+			c.phone phone,
+			c.email email,
 			ct.name type
 		from
 			contact c
@@ -155,8 +165,15 @@ func GetContact(id, limit, offset int64) (records []ContactOut) {
 		common.ErrHandler(err)
 
 		for rows.Next() {
-			err := rows.Scan(&record.Id, &record.Firstname, &record.Lastname, &record.Prefix, &record.Type)
+			var phone, email sql.NullString
+			err := rows.Scan(&record.Id, &record.Firstname, &record.Lastname, &record.Prefix, &phone, &email, &record.Type)
 			common.ErrHandler(err)
+			if phone.Valid {
+				record.Phone = phone.String
+			}
+			if email.Valid {
+				record.Email = email.String
+			}
 
 			records = append(records, record)
 		}
@@ -169,8 +186,15 @@ func GetContact(id, limit, offset int64) (records []ContactOut) {
 		common.ErrHandler(err)
 
 		for rows.Next() {
-			err := rows.Scan(&record.Id, &record.Firstname, &record.Lastname, &record.Prefix, &record.Type)
+			var phone, email sql.NullString
+			err := rows.Scan(&record.Id, &record.Firstname, &record.Lastname, &record.Prefix, &phone, &email, &record.Type)
 			common.ErrHandler(err)
+			if phone.Valid {
+				record.Phone = phone.String
+			}
+			if email.Valid {
+				record.Email = email.String
+			}
 
 			records = append(records, record)
 		}
@@ -195,6 +219,14 @@ func FindContact(contacin ContactIn) (records []ContactOut, err error) {
 	}
 	if strings.Compare(contacin.Prefix, "") != 0 {
 		_, err = sbQContact.WriteString(fmt.Sprintf("and prefix = '%s'", contacin.Prefix))
+		common.ErrHandler(err)
+	}
+	if strings.Compare(contacin.Phone, "") != 0 {
+		_, err = sbQContact.WriteString(fmt.Sprintf("and phone = '%s'", contacin.Phone))
+		common.ErrHandler(err)
+	}
+	if strings.Compare(contacin.Email, "") != 0 {
+		_, err = sbQContact.WriteString(fmt.Sprintf("and email = '%s'", contacin.Email))
 		common.ErrHandler(err)
 	}
 
@@ -230,10 +262,12 @@ func InsertContact(contactin ContactIn) (id int64, err error) {
 	}
 
 	q = fmt.Sprintf(
-		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `deleted`) VALUES ('%s','%s','%s','0')",
+		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `phone`, `email`, `deleted`) VALUES ('%s','%s','%s', '%s', '%s','0')",
 		contactin.Firstname,
 		contactin.Lastname,
 		contactin.Prefix,
+		contactin.Phone,
+		contactin.Email,
 	)
 
 	result, err := Exec(q)
@@ -308,6 +342,16 @@ func UpdateContact(contactId int64, contactin ContactIn) (id int64, err error) {
 		(strings.Compare(contactin.Prefix, "") != 0) {
 		set = true
 		setField = append(setField, fmt.Sprintf("prefix = '%s'", contactin.Prefix))
+	}
+	if (strings.Compare(contact.Phone, contactin.Phone) != 0) &&
+		(strings.Compare(contactin.Phone, "") != 0) {
+		set = true
+		setField = append(setField, fmt.Sprintf("phone = '%s'", contactin.Prefix))
+	}
+	if (strings.Compare(contact.Email, contactin.Email) != 0) &&
+		(strings.Compare(contactin.Email, "") != 0) {
+		set = true
+		setField = append(setField, fmt.Sprintf("email = '%s'", contactin.Prefix))
 	}
 	if (strings.Compare(contact.Type, contactin.Type) != 0) &&
 		(strings.Compare(contactin.Type, "") != 0) {

@@ -86,10 +86,12 @@ func PostContactHandler(c *gin.Context) {
 
 	// insert ke table contact
 	q := fmt.Sprintf(
-		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `deleted`) VALUES ('%s','%s','%s','0')",
+		"INSERT INTO `contact` (`fname`, `lname`, `prefix`, `phone`, `email`, `deleted`) VALUES ('%s','%s','%s','%s','%s','0')",
 		input.Firstname,
 		input.Lastname,
 		input.Prefix,
+		input.Phone,
+		input.Email,
 	)
 	result, err := cpac.Exec(q)
 	if err != nil {
